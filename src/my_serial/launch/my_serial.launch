@@ -4,9 +4,9 @@
 
         <!-- node  -->
         <node pkg="my_serial" type="my_serial" name="my_serial" output="screen"/>
-
+	<node pkg="ga_pid" type="ga_pid_node" name="ga_pid_node" output="screen"/>
         <!-- plot -->
-        <node pkg="rqt_plot" type="rqt_plot" name="rqt_plot"/>
+        <!--node pkg="rqt_plot" type="rqt_plot" name="rqt_plot"/-->
 
 </launch>
 
