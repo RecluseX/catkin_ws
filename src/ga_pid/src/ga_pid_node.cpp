@@ -64,6 +64,8 @@ void Node::init(void)
 	motor_sub = n.subscribe("motor", 1000, motor_callback);
 	lm->init_population(0.0001, 0.05, 0.0001, 0.01);
 	rm->init_population(0.0001, 0.05, 0.0001, 0.01);
+	lm->eva->clear_result();
+	rm->eva->clear_result();
 	index = 0;
 	set_pid_params = false;
 	ros::Time::init();
@@ -78,15 +80,9 @@ void Node::tune()
                 set_pid_params = false;
 		if(m_tuneCnt % 2 == 0) {
 			if (index) {
-				lm->population[index - 1].fitness = lm->eva->calculate_score();
-                	        rm->population[index - 1].fitness = rm->eva->calculate_score();
-				ROS_INFO("-------------------\n");
-				ROS_INFO("gen:%d index:%d", m_generation, index);
-				ROS_INFO("-------------------\n");
-				ROS_INFO("---------- lm fitness: %f || rm fitness: %f ----------\n", lm->population[index - 1].fitness, rm->population[index - 1].fitness);
-                                ROS_INFO("----------------------------------------------------\n\n\n\n\n\n");
-				
-				if (index == m_popSize) {
+				lm->eva->prepare_result(index - 1);
+//				rm->eva->prepare_result(index - 1);
+				if (index == m_popSize + 1) {
 					m_evolutationComplete = true;
 				}
 			}
@@ -97,27 +93,36 @@ void Node::tune()
 	if (m_evolutationComplete) {
 		m_evolutationComplete = false;
 		if (!m_getBestIndex) {
+			m_getBestIndex = true;
+                        lm->evaluate();
+                        //rm->evaluate();
 			lm->keep_best_chromosome();
-			rm->keep_best_chromosome();
+			//rm->keep_best_chromosome();
 		}
 		if (m_generation < lm->m_maxGen) {
 			ROS_INFO("generation:%d", m_generation);
 			m_generation++;
-			
-//			lm->elitist();			
+			index = 0;			
+			lm->evaluate();
 			lm->update_p();
+			lm->elitist();			
 			lm->selections();
                         lm->crossover();
                         lm->mutation(m_generation);
-                        lm->elitist();	
-
+                        //lm->evaluate();
+			//lm->update_p();
+			//lm->elitist();	
+		        lm->eva->clear_result();
+/*
 //			rm->elitist();
-			rm->update_p();
                         rm->selections();
                         rm->crossover();
                         rm->mutation(m_generation);
-                        rm->elitist();
-			
+			rm->evaluate();
+                        rm->update_p();
+			rm->elitist();
+			rm->eva->clear_result();
+*/
 			ROS_INFO("best chromosome: lm kp:%f ki:%f fitness:%f || rm kp:%f ki:%f fitness:%f", lm->population[m_popSize].chromosome.kp, lm->population[m_popSize].chromosome.ki, lm->population[m_popSize].fitness, rm->population[m_popSize].chromosome.kp, rm->population[m_popSize].chromosome.ki, rm->population[m_popSize].fitness);
 
                         ROS_INFO("\n----------------------------------------------------\n");
@@ -129,11 +134,8 @@ void Node::tune()
                         ROS_INFO("\n----------------------------------------------------\n");
                 } else {
                         lm->keep_best_chromosome();
-                        rm->keep_best_chromosome();
+ //                       rm->keep_best_chromosome();
 			ROS_INFO("best chromosome: lm kp:%f ki:%f fitness:%f || rm kp:%f ki:%f fitness:%f", lm->population[m_popSize].chromosome.kp, lm->population[m_popSize].chromosome.ki, lm->population[m_popSize].fitness, rm->population[m_popSize].chromosome.kp, rm->population[m_popSize].chromosome.ki, rm->population[m_popSize].fitness);
-			while(1) {
-
-			}
 		}
         }
 	if(m_tuneCnt % 2 == 0) {
@@ -148,7 +150,10 @@ void Node::tune()
 				set_pid_params = true;
 				lm->eva->init(now_time, 100);
 				rm->eva->init(now_time, 100);
+				
+				ROS_INFO("index:%d", index);
 				index++;
+				
 			} else {
 				pid_params.lmkp = lm->population[m_popSize].chromosome.kp;
                                 pid_params.lmki = lm->population[m_popSize].chromosome.ki;
@@ -160,7 +165,7 @@ void Node::tune()
 			}
         	} else {
 			lm->eva->get_data(now_time, leftRatio);
-			rm->eva->get_data(now_time, rightRatio);
+//			rm->eva->get_data(now_time, rightRatio);
 		}
 	} else {
 		if (!set_pid_params) {
@@ -173,9 +178,9 @@ void Node::tune()
                         set_pid_params = true;
 		}
 	}
-	if (index > m_popSize) {
-		index = 0;
-	}
+//	if (index > m_popSize) {
+//		index = 0;
+//	}
 }
 
 int main(int argc, char **argv)

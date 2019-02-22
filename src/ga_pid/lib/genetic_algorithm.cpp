@@ -3,7 +3,7 @@
 
 GA::GA(int t_popSize, int t_maxGen, double t_pCrossover, double t_pMutation)
 {
-	eva = new evaluation();
+	eva = new evaluation(t_popSize);
 	m_popSize = t_popSize;
 	m_maxGen = t_maxGen;
 	m_pCrossover = t_pCrossover;
@@ -49,6 +49,13 @@ double GA::randval(double min, double max)
 //评价
 void GA::evaluate()
 {
+	int index;
+	double temp;
+	for (index = 0; index < m_popSize+1; index++) {
+		temp = eva->calculate_score(index);
+		population[index].fitness = temp;
+		printf("kp:%f  ki:%f\n", population[index].chromosome.kp, population[index].chromosome.ki);
+	}
 }
 
 
@@ -184,7 +191,7 @@ void GA::Xover(int index1, int index2)
 	int point;
 	
 	swap(&population[index1].chromosome.kp, &population[index2].chromosome.kp);
-        swap(&population[index1].chromosome.ki, &population[index2].chromosome.ki);
+//        swap(&population[index1].chromosome.ki, &population[index2].chromosome.ki);
 }
 
 void GA::swap(double *x, double *y)
@@ -206,7 +213,7 @@ void GA::mutation(int t_generation)
 	for (index = 0; index < m_popSize; index++) {
 		p = rand() % 1000 / 1000.0;
 		if (p < population[index].p_mutation) {
-			population[index].chromosome.kp = delta(t_generation, population[index].chromosome.kp, 0.001, 0.001);
+			population[index].chromosome.kp = delta(t_generation, population[index].chromosome.kp, 0.005, 0.001);
 			if (population[index].chromosome.kp > population[index].p_max)
 				population[index].chromosome.kp = population[index].p_max;
 			if (population[index].chromosome.kp < population[index].p_min)
@@ -216,7 +223,7 @@ void GA::mutation(int t_generation)
         for (index = 0; index < m_popSize; index++) {
                 p = rand() % 1000 / 1000.0;
                 if (p < population[index].p_mutation) {
-                	population[index].chromosome.ki = delta(t_generation, population[index].chromosome.ki, 0.001, 0.001);
+                	population[index].chromosome.ki = delta(t_generation, population[index].chromosome.ki, 0.005, 0.001);
                         if (population[index].chromosome.ki > population[index].i_max)
                                 population[index].chromosome.ki = population[index].i_max;
                         if (population[index].chromosome.ki < population[index].i_min)
@@ -248,14 +255,14 @@ void GA::update_p(void)
 	
 	f_max = population[0].fitness;
 	f_avg = population[0].fitness;
-	for (index = 1; index < m_popSize; index++) {
+	for (index = 1; index < m_popSize+1; index++) {
 		if (f_max < population[index].fitness) {
 			f_max = population[index].fitness;
 		}
 		f_avg += population[index].fitness;
 		printf("fitness:%f\n", population[index].fitness);
 	}
-	f_avg /= m_popSize;
+	f_avg /= m_popSize + 1;
 	printf("******** f_max:%f  f_avg:%f ********\n", f_max, f_avg);	
 	for (index = 0; index < m_popSize; index++) {
 		if (population[index].fitness >= f_avg) {

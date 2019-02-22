@@ -41,7 +41,7 @@ void pid_callback(const motor_msg::pid_params pid_params)
 	        target = 100;
 	}
 
-	ROS_INFO("get pid params from pid tune: lmkp:%f  lmki:%f  || rmkp:%f  rmki:%f target:%d", pid_params.lmkp, pid_params.lmki, pid_params.rmkp, pid_params.rmki, target);	
+//	ROS_INFO("get pid params from pid tune: lmkp:%f  lmki:%f  || rmkp:%f  rmki:%f target:%d", pid_params.lmkp, pid_params.lmki, pid_params.rmkp, pid_params.rmki, target);	
 	int i;
         uint8_t buff[34] = {0};
         buff[0] = 0xaa;
@@ -84,7 +84,7 @@ void pid_callback(const motor_msg::pid_params pid_params)
         for (i = 0; i < 34; i++) {
 //                ROS_INFO(" %x", buff[i]);
         }
-        ROS_INFO("\n");
+//        ROS_INFO("\n");
         ser.write(buff, 34);
 
 }
