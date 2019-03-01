@@ -20,22 +20,25 @@ GA::~GA()
 	delete new_population;
 }
 
-void GA::init_population(double t_pMin, double t_pMax, double t_iMin, double t_iMax)
+void GA::init_population(double t_pMin, double t_pMax, double t_iMin, double t_iMax, double t_dMin, double t_dMax)
 {
         int i;
 	//生成初始种群
         for (i = 0; i < m_popSize; i++) {
                 population[i].chromosome.kp = randval(t_pMin, t_pMax);
                 population[i].chromosome.ki = randval(t_iMin, t_iMax);
+		population[i].chromosome.kd = randval(t_dMin, t_dMax);
                 population[i].fitness = 0;
                 population[i].p_min = t_pMin;
                 population[i].p_max = t_pMax;
         	population[i].i_min = t_iMin;
                 population[i].i_max = t_iMax;
+		population[i].d_min = t_dMin;
+		population[i].d_max = t_dMax;
 	}
         printf("init population success\n");
         for (i = 0; i < m_popSize; i++) {
-                printf("kp:%f ki:%f\n", population[i].chromosome.kp, population[i].chromosome.ki);
+                printf("kp:%f ki:%f  kd:%f\n", population[i].chromosome.kp, population[i].chromosome.ki, population[i].chromosome.kd);
         }
         printf("\n");
 
@@ -54,7 +57,7 @@ void GA::evaluate()
 	for (index = 0; index < m_popSize+1; index++) {
 		temp = eva->calculate_score(index);
 		population[index].fitness = temp;
-		printf("kp:%f  ki:%f\n", population[index].chromosome.kp, population[index].chromosome.ki);
+		printf("kp:%f  ki:%f  kd:%f\n", population[index].chromosome.kp, population[index].chromosome.ki, population[index].chromosome.kd);
 	}
 }
 
@@ -75,7 +78,7 @@ void GA::keep_best_chromosome()
 	
 	population[m_popSize].chromosome.kp = population[m_curBestIndex].chromosome.kp;
         population[m_popSize].chromosome.ki = population[m_curBestIndex].chromosome.ki;
-
+	population[m_popSize].chromosome.kd = population[m_curBestIndex].chromosome.kd;
 }
 
 //搜索最好和最差的个体
@@ -117,10 +120,14 @@ void GA::elitist()
 		population[m_popSize].fitness = population[best_index].fitness;
 		population[m_popSize].chromosome.kp = population[best_index].chromosome.kp;
                 population[m_popSize].chromosome.ki = population[best_index].chromosome.ki;
+                population[m_popSize].chromosome.kd = population[best_index].chromosome.kd;
+
 	} else {
 		population[worst_index].fitness = population[m_popSize].fitness;
                 population[worst_index].chromosome.kp = population[m_popSize].chromosome.kp;
                 population[worst_index].chromosome.ki = population[m_popSize].chromosome.ki;
+                population[worst_index].chromosome.kd = population[m_popSize].chromosome.kd;
+
 	}
 }
 
@@ -189,8 +196,19 @@ void GA::Xover(int index1, int index2)
 {
 	int i;
 	int point;
+	int x;
+
+	x = rand() % 3;
 	
-	swap(&population[index1].chromosome.kp, &population[index2].chromosome.kp);
+	if (x == 0) {
+	        swap(&population[index1].chromosome.kp, &population[index2].chromosome.kp);
+	} else if (x == 1) {
+	        swap(&population[index1].chromosome.ki, &population[index2].chromosome.ki);
+	} else {
+	        swap(&population[index1].chromosome.kd, &population[index2].chromosome.kd);
+	}
+	
+//	swap(&population[index1].chromosome.kp, &population[index2].chromosome.kp);
 //        swap(&population[index1].chromosome.ki, &population[index2].chromosome.ki);
 }
 
@@ -230,6 +248,17 @@ void GA::mutation(int t_generation)
                                 population[index].chromosome.ki = population[index].i_min;
 		}
         }
+        for (index = 0; index < m_popSize; index++) {
+                p = rand() % 1000 / 1000.0;
+                if (p < population[index].p_mutation) {
+                        population[index].chromosome.kd = delta(t_generation, population[index].chromosome.kd, 0.005, 0.001);
+                        if (population[index].chromosome.kd > population[index].d_max)
+                                population[index].chromosome.kd = population[index].d_max;
+                        if (population[index].chromosome.kd < population[index].d_min)
+                                population[index].chromosome.kd = population[index].d_min;
+                }
+        }
+
 }
 
 double GA::delta(int generation, double pop, double high, double low)

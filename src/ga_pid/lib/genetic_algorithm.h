@@ -11,6 +11,7 @@ struct chromosome_st
 {
 	double kp;
 	double ki;
+	double kd;
 };
 
 struct population_st
@@ -23,6 +24,8 @@ struct population_st
 	double p_min;
 	double i_max;
 	double i_min;
+	double d_max;
+	double d_min;
 	double p_crossover;
 	double p_mutation;
 };
@@ -33,7 +36,7 @@ public:
 	GA(int t_popSize, int t_maxGen, double t_pCrossover, double t_pMutation);
 	~GA();
 	
-	void init_population(double t_pMin, double t_pMax, double t_iMin, double t_iMax);
+	void init_population(double t_pMin, double t_pMax, double t_iMin, double t_iMax, double t_dMin, double t_dMax);
 	void evaluate();
 	void elitist(void);
 	void crossover(void);

@@ -2,6 +2,19 @@
 #include "genetic_algorithm.h"
 #include <motor_msg/pid_params.h>
 #include <motor_msg/motor.h>
+#include "nn_sample.h"
+
+enum
+{
+	WAIT = 0,
+	SET_PARAM,
+	SAMPLE_DATA,
+	EVALUATION,
+	GENETIC,
+	STOP,
+	DISPLAY,
+	CHANGE
+};
 
 class Node
 {
@@ -10,12 +23,14 @@ public:
 	~Node();
 	
 	GA *lm, *rm;
+	NN_SAMPLE *nn_sample;
 	void init(void);
 	void tune(void);
 	
         double now_time, last_time;
 	int m_generation;
-
+	int m_state;
+	double delta_time;
 private:
 	
 	ros::NodeHandle n;
@@ -39,8 +54,10 @@ Node::Node()
 	m_evolutationComplete = false;
 	m_getBestIndex = false;
 	m_tuneCnt = 0;
+	m_state = WAIT;
 	lm = new GA(m_popSize, m_maxGen, 0.8f, 0.15f);
 	rm = new GA(m_popSize, m_maxGen, 0.8f, 0.15f);
+	nn_sample = new NN_SAMPLE("test.txt", 10000);
 }
 
 Node::~Node()
@@ -62,125 +79,134 @@ void Node::init(void)
 {
 	pid_pub = n.advertise<motor_msg::pid_params>("pid_params", 1000);
 	motor_sub = n.subscribe("motor", 1000, motor_callback);
-	lm->init_population(0.0001, 0.05, 0.0001, 0.01);
-	rm->init_population(0.0001, 0.05, 0.0001, 0.01);
+	lm->init_population(0.0001, 0.05, 0.0001, 0.01, 0.000001, 0.0001);
+	rm->init_population(0.0001, 0.05, 0.0001, 0.01, 0.000001, 0.0001);
 	lm->eva->clear_result();
 	rm->eva->clear_result();
 	index = 0;
 	set_pid_params = false;
 	ros::Time::init();
+	nn_sample->init();
 }
 
 void Node::tune()
 {
 	int i;
 	now_time = ros::Time::now().toSec();
-	if ((now_time - last_time) > 3.0) {
-		m_tuneCnt++;
-                set_pid_params = false;
-		if(m_tuneCnt % 2 == 0) {
-			if (index) {
-				lm->eva->prepare_result(index - 1);
-//				rm->eva->prepare_result(index - 1);
-				if (index == m_popSize + 1) {
-					m_evolutationComplete = true;
-				}
-			}
-		}
-		last_time = now_time;
-	}
 	
-	if (m_evolutationComplete) {
-		m_evolutationComplete = false;
-		if (!m_getBestIndex) {
-			m_getBestIndex = true;
-                        lm->evaluate();
-                        //rm->evaluate();
-			lm->keep_best_chromosome();
-			//rm->keep_best_chromosome();
-		}
-		if (m_generation < lm->m_maxGen) {
-			ROS_INFO("generation:%d", m_generation);
-			m_generation++;
-			index = 0;			
-			lm->evaluate();
-			lm->update_p();
-			lm->elitist();			
-			lm->selections();
-                        lm->crossover();
-                        lm->mutation(m_generation);
-                        //lm->evaluate();
-			//lm->update_p();
-			//lm->elitist();	
-		        lm->eva->clear_result();
-/*
-//			rm->elitist();
-                        rm->selections();
-                        rm->crossover();
-                        rm->mutation(m_generation);
-			rm->evaluate();
-                        rm->update_p();
-			rm->elitist();
-			rm->eva->clear_result();
-*/
-			ROS_INFO("best chromosome: lm kp:%f ki:%f fitness:%f || rm kp:%f ki:%f fitness:%f", lm->population[m_popSize].chromosome.kp, lm->population[m_popSize].chromosome.ki, lm->population[m_popSize].fitness, rm->population[m_popSize].chromosome.kp, rm->population[m_popSize].chromosome.ki, rm->population[m_popSize].fitness);
-
-                        ROS_INFO("\n----------------------------------------------------\n");
-
-	                for (i = 0; i < m_popSize; i++) {
-                        	ROS_INFO("right new population kp:%f  ki:%f", rm->population[i].chromosome.kp, rm->population[i].chromosome.ki);
-                                ROS_INFO("left  new population kp:%f  ki:%f \n", lm->population[i].chromosome.kp, lm->population[i].chromosome.ki);
-                        }
-                        ROS_INFO("\n----------------------------------------------------\n");
-                } else {
-                        lm->keep_best_chromosome();
- //                       rm->keep_best_chromosome();
-			ROS_INFO("best chromosome: lm kp:%f ki:%f fitness:%f || rm kp:%f ki:%f fitness:%f", lm->population[m_popSize].chromosome.kp, lm->population[m_popSize].chromosome.ki, lm->population[m_popSize].fitness, rm->population[m_popSize].chromosome.kp, rm->population[m_popSize].chromosome.ki, rm->population[m_popSize].fitness);
-		}
-        }
-	if(m_tuneCnt % 2 == 0) {
-		if (!set_pid_params) {
-			if (m_generation < lm->m_maxGen) {
-        	        	pid_params.lmkp = lm->population[index].chromosome.kp;
-        	        	pid_params.lmki = lm->population[index].chromosome.ki;
-        	        	pid_params.rmkp = rm->population[index].chromosome.kp;
-        	        	pid_params.rmki = rm->population[index].chromosome.ki;
-
-        	        	pid_pub.publish(pid_params);
-				set_pid_params = true;
-				lm->eva->init(now_time, 100);
-				rm->eva->init(now_time, 100);
-				
-				ROS_INFO("index:%d", index);
-				index++;
-				
-			} else {
-				pid_params.lmkp = lm->population[m_popSize].chromosome.kp;
-                                pid_params.lmki = lm->population[m_popSize].chromosome.ki;
-                                pid_params.rmkp = rm->population[m_popSize].chromosome.kp;
-                                pid_params.rmki = rm->population[m_popSize].chromosome.ki;
-
-                                pid_pub.publish(pid_params);
-                                set_pid_params = true;
+	switch (m_state) {
+		case WAIT:
+		        if ((now_time - last_time) > 1.0) {
+				ROS_INFO("WAIT");
+				m_state = SET_PARAM;	
+		                last_time = now_time;
 			}
-        	} else {
-			lm->eva->get_data(now_time, leftRatio);
-//			rm->eva->get_data(now_time, rightRatio);
-		}
-	} else {
-		if (!set_pid_params) {
-                        pid_params.lmkp = 6;
-                        pid_params.lmki = 0.01;
-                        pid_params.rmkp = 6;
-                        pid_params.rmki = 0.01;
+			break;
+		case SET_PARAM:
+                        ROS_INFO("SET PARAM");
+			pid_params.lmtarget = 100;
+                        pid_params.lmkp = lm->population[index].chromosome.kp;
+                        pid_params.lmki = lm->population[index].chromosome.ki;
+                        pid_params.lmkd = lm->population[index].chromosome.kd;
+                        pid_params.rmkp = 0.02;//rm->population[index].chromosome.kp;
+                        pid_params.rmki = 0.004;rm->population[index].chromosome.ki;
+			pid_params.rmkd = 0;
+                        pid_pub.publish(pid_params);
+                        lm->eva->init(now_time, pid_params.lmtarget);
+
+                        ROS_INFO("index:%d", index);
+                        index++;
+			m_state = SAMPLE_DATA;
+			break;
+		case STOP:
+			ROS_INFO("STOP");
+			pid_params.lmtarget = 0;
+                        pid_params.lmkp = 0.01;
+                        pid_params.lmki = 0.001;
+                        pid_params.rmkp = 0.01;
+                        pid_params.rmki = 0.001;
 
                         pid_pub.publish(pid_params);
-                        set_pid_params = true;
-		}
+			m_state = EVALUATION;
+			break;
+		case SAMPLE_DATA:
+                        lm->eva->get_data(now_time, leftRatio);
+			if (leftRatio != 0) {
+				nn_sample->sampling(pid_params.lmtarget, pid_params.lmkp, pid_params.lmki, pid_params.lmkd, leftRatio);
+			}
+			if ((now_time - last_time) > 3.0) {
+                                ROS_INFO("SAMPLE_DATA");
+			        m_state = STOP;
+                                last_time = now_time;
+                        }
+
+			break;
+		case EVALUATION:
+                        ROS_INFO("EVALUATION");
+			lm->eva->prepare_result(index - 1);
+                        if (index == m_popSize + 1) {
+				m_state = GENETIC;
+                        } else {
+				m_state = WAIT;
+			}
+			break;
+		case GENETIC:
+                        ROS_INFO("GA");
+			if (!m_getBestIndex) {
+                        	m_getBestIndex = true;
+                        	lm->evaluate();
+                        	lm->keep_best_chromosome();
+                	}
+                	if (m_generation < lm->m_maxGen) {
+                        	ROS_INFO("generation:%d", m_generation);
+                        	m_generation++;
+                        	index = 0;
+                        	lm->evaluate();
+                        	lm->update_p();
+                        	lm->elitist();
+                        	lm->selections();
+                        	lm->crossover();
+                        	lm->mutation(m_generation);
+                        	lm->eva->clear_result();
+
+                        	ROS_INFO("best chromosome: lm kp:%f ki:%f kd:%f fitness:%f || rm kp:%f ki:%f kd:%f fitness:%f", lm->population[m_popSize].chromosome.kp, lm->population[m_popSize].chromosome.ki, lm->population[m_popSize].chromosome.kd, lm->population[m_popSize].fitness, rm->population[m_popSize].chromosome.kp, rm->population[m_popSize].chromosome.ki, rm->population[m_popSize].chromosome.kd, rm->population[m_popSize].fitness);
+
+                        	ROS_INFO("\n----------------------------------------------------\n");
+
+                        	for (i = 0; i < m_popSize; i++) {
+                                	ROS_INFO("left  new population kp:%f  ki:%f \n", lm->population[i].chromosome.kp, lm->population[i].chromosome.ki);
+                        	}
+                        	ROS_INFO("\n----------------------------------------------------\n");
+                	} else {
+                        	lm->keep_best_chromosome();
+                        	ROS_INFO("best chromosome: lm kp:%f ki:%f fitness:%f || rm kp:%f ki:%f fitness:%f", lm->population[m_popSize].chromosome.kp, lm->population[m_popSize].chromosome.ki, lm->population[m_popSize].fitness, rm->population[m_popSize].chromosome.kp, rm->population[m_popSize].chromosome.ki, rm->population[m_popSize].fitness);
+                	}
+			
+			m_state = WAIT;
+			break;
+		case DISPLAY:
+			pid_params.lmtarget += 100;
+                        if (pid_params.lmtarget >= 600)
+                                pid_params.lmtarget = 100;
+                        pid_params.lmkp = lm->population[m_popSize].chromosome.kp;
+                        pid_params.lmki = lm->population[m_popSize].chromosome.ki;
+                        pid_params.rmkp = rm->population[m_popSize].chromosome.kp;
+                        pid_params.rmki = rm->population[m_popSize].chromosome.ki;
+
+                        pid_pub.publish(pid_params);
+			ROS_INFO("Best result:kp: %f kiL %f kd:%f target:%d", pid_params.lmkp, pid_params.lmki, pid_params.lmkd, pid_params.lmtarget);			
+
+			m_state = CHANGE;
+			break;
+		case CHANGE:
+			if (now_time - last_time > 3.0) {
+				m_state = DISPLAY;
+				last_time = now_time;
+			}
+			break;
+		default:
+			break;
 	}
-//	if (index > m_popSize) {
-//		index = 0;
-//	}
 }
 
 int main(int argc, char **argv)
@@ -195,3 +221,7 @@ int main(int argc, char **argv)
 		loop_rate.sleep();
 	}
 }
+
+
+
+

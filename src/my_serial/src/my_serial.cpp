@@ -29,17 +29,18 @@ void pid_callback(const motor_msg::pid_params pid_params)
 {
 	lm_kp.val = pid_params.lmkp;
         lm_ki.val = pid_params.lmki;
-	lm_kd.val = 0.0;
+	lm_kd.val = pid_params.lmkd;
         rm_kp.val = pid_params.rmkp;
         rm_ki.val = pid_params.rmki;
-	rm_kd.val = 0.0;
-	if (lm_kp.val == 6) {
+	rm_kd.val = pid_params.rmkd;
+	/*if (lm_kp.val == 6) {
 		lm_kp.val = 0.005,
 		lm_ki.val = 0.002;
 		target = 0;
 	} else {
 	        target = 100;
-	}
+	}*/
+	target = pid_params.lmtarget;
 
 //	ROS_INFO("get pid params from pid tune: lmkp:%f  lmki:%f  || rmkp:%f  rmki:%f target:%d", pid_params.lmkp, pid_params.lmki, pid_params.rmkp, pid_params.rmki, target);	
 	int i;
@@ -100,7 +101,7 @@ int get_value(const char *data)
 //		ROS_INFO("%c", *data);
 		data++;
 	}
-	if (abs(value) > 400)
+	if (abs(value) > 1000)
 		return -1;
 	return value;
 }
