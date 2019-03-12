@@ -40,7 +40,7 @@ void evaluation::init(double time, int set_point)
 void evaluation::get_data(double time, int value)
 {
 	int delta_value = abs(value - last_value);
-	set_point = 100;
+	set_point = 200;
 //	printf("set_point:%d value:%d last_value:%d first_reach:%d sum:%d \n", set_point, value, last_value, first_reach, sum);
 	if (!work && value) {
 		work = true;
@@ -99,7 +99,7 @@ void evaluation::prepare_result(int index)
 		avg[index] = 200;
 	peak_time -= init_time;
 	time_result[index] = rising_time + peak_time;// + adjust_time + stable_time;
-	peak_result[index] = abs(peak - 100) * abs (peak - 100);
+	peak_result[index] = abs(peak - 200) * abs (peak - 200);
 	err_avg_sum += avg[index];
 	time_sum += time_result[index];
 	peak_sum += peak_result[index];

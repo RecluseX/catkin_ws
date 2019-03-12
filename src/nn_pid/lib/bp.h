@@ -7,8 +7,8 @@
 #include <stdio.h>
 #include "samples.h"
 #include <vector>
-#include<opencv2/core/core.hpp>
-
+#include <opencv2/core/core.hpp>
+#include <math.h>
 
 class BP
 {
@@ -18,15 +18,15 @@ public:
 	BP();
 	~BP();
 	
-	int8_t get_data();
-	Samples *sample;
-	
-	void init();
 	void initNet(std::vector<int> layer_neuron_num);
-	void train(std::vector<double>input, std::vector<double> target);
-	void forward();
-	void backward();
-	void update();
+	void train(std::vector< std::vector<double> >input_, std::vector< std::vector<double> > target_, float loss_threshold);
+
+	std::vector< std::vector<double> >input;
+	std::vector< std::vector<double> >target;
+	std::vector< std::vector<double> >lossArray;
+	double lossSum;
+	double learning_rate;
+
 private:
 	std::vector<double> input_layer;
         std::vector<double> hidden_layer;
@@ -35,10 +35,24 @@ private:
 	std::vector<std::vector<double> > hidden_weight;
         std::vector<std::vector<double> > output_weight;
 	
+	std::vector<std::vector<double> > hidden_out;
+	std::vector<std::vector<double> > output_out;
+	
+	std::vector<std::vector<double> >hidden_delta;
+	std::vector<std::vector<double> >output_delta;
+
 	double activation_func(double input, int type);
+	double derivative_func(double input, int type);
+	double calcLoss(std::vector<double> target, std::vector<double>output, std::vector<double>lossArray);
+	void display();	
+	void delta();
+	void update();
+        void forward();
+        void backward();	
 
-	double m_loss;
-
+	double loss;
+	int train_num;
+	bool train_complete;	
 };
 
 

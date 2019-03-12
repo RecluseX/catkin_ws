@@ -49,7 +49,7 @@ private:
 Node::Node()
 {
 	m_popSize = 10;
-	m_maxGen = 50;
+	m_maxGen = 3;
 	m_generation = 0;
 	m_evolutationComplete = false;
 	m_getBestIndex = false;
@@ -92,6 +92,8 @@ void Node::init(void)
 void Node::tune()
 {
 	int i;
+	int p;
+	int delta;
 	now_time = ros::Time::now().toSec();
 	
 	switch (m_state) {
@@ -104,7 +106,7 @@ void Node::tune()
 			break;
 		case SET_PARAM:
                         ROS_INFO("SET PARAM");
-			pid_params.lmtarget = 100;
+			pid_params.lmtarget = 200;
                         pid_params.lmkp = lm->population[index].chromosome.kp;
                         pid_params.lmki = lm->population[index].chromosome.ki;
                         pid_params.lmkd = lm->population[index].chromosome.kd;
@@ -144,7 +146,7 @@ void Node::tune()
 		case EVALUATION:
                         ROS_INFO("EVALUATION");
 			lm->eva->prepare_result(index - 1);
-                        if (index == m_popSize + 1) {
+                        if (index >= m_popSize + 1) {
 				m_state = GENETIC;
                         } else {
 				m_state = WAIT;
@@ -177,24 +179,32 @@ void Node::tune()
                                 	ROS_INFO("left  new population kp:%f  ki:%f \n", lm->population[i].chromosome.kp, lm->population[i].chromosome.ki);
                         	}
                         	ROS_INFO("\n----------------------------------------------------\n");
-                	} else {
+                		m_state = WAIT;
+			} else {
                         	lm->keep_best_chromosome();
                         	ROS_INFO("best chromosome: lm kp:%f ki:%f fitness:%f || rm kp:%f ki:%f fitness:%f", lm->population[m_popSize].chromosome.kp, lm->population[m_popSize].chromosome.ki, lm->population[m_popSize].fitness, rm->population[m_popSize].chromosome.kp, rm->population[m_popSize].chromosome.ki, rm->population[m_popSize].fitness);
-                	}
+                		m_state = DISPLAY;
+			}
 			
-			m_state = WAIT;
 			break;
 		case DISPLAY:
-			pid_params.lmtarget += 100;
-                        if (pid_params.lmtarget >= 600)
-                                pid_params.lmtarget = 100;
+			p = rand()%2;
+			delta = rand()%5;
+			if (p) 		
+				pid_params.lmtarget += 100 * delta;
+			else 
+				pid_params.lmtarget -= 100 * delta;
+                        if (pid_params.lmtarget >= 1000)
+                                pid_params.lmtarget = 1000;
+			if (pid_params.lmtarget <= -1000)
+				pid_params.lmtarget = -1000;
                         pid_params.lmkp = lm->population[m_popSize].chromosome.kp;
                         pid_params.lmki = lm->population[m_popSize].chromosome.ki;
                         pid_params.rmkp = rm->population[m_popSize].chromosome.kp;
                         pid_params.rmki = rm->population[m_popSize].chromosome.ki;
 
                         pid_pub.publish(pid_params);
-			ROS_INFO("Best result:kp: %f kiL %f kd:%f target:%d", pid_params.lmkp, pid_params.lmki, pid_params.lmkd, pid_params.lmtarget);			
+			ROS_INFO("Best result:kp: %f kiL %f kd:%f target:%d delta:%d", pid_params.lmkp, pid_params.lmki, pid_params.lmkd, pid_params.lmtarget, delta);			
 
 			m_state = CHANGE;
 			break;

@@ -1,7 +1,9 @@
 #include <ros/ros.h>
 #include <serial/serial.h>
 #include <std_msgs/String.h>
+#include <std_msgs/Char.h>
 #include <std_msgs/Empty.h>
+#include <std_msgs/UInt8MultiArray.h>
 #include <motor_msg/motor.h>
 #include <motor_msg/pid_params.h>
 #include <string.h>
@@ -11,7 +13,10 @@
 serial::Serial ser;
 
 int32_t target;
-
+uint8_t head1 = 0, head2 = 0;
+uint8_t tail1 = 0, tail2 = 0;
+uint8_t data_ready = 0;
+uint8_t n = 0;
 
 union 
 {
@@ -165,6 +170,31 @@ void pid_params_callback(my_serial::pid_paramsConfig &config, uint32_t level)
 	ser.write(buff, 34);
 }
 
+void process_data(std_msgs::UInt8MultiArray data, uint8_t len, int16_t *moto)
+{
+	int i;
+	//int16_t lt, lr, rt, rr;
+//	for (i = 0; i < len; i++) {
+//		ROS_INFO("%x", data.data[i]);
+//	}
+	if (data.data[0] != 0xaa || data.data[1] != 0xcc)
+		return;
+
+	if (data.data[len - 2] != 0x0d || data.data[len - 1] != 0x0a)
+		return;
+//	ROS_INFO("recv frame");
+	moto[0] = (data.data[2] & 0x00FF) << 8 | data.data[3];
+        moto[1] = data.data[4] << 8 | data.data[5];
+        moto[2] = data.data[6] << 8 | data.data[7];
+        moto[3] = data.data[8] << 8 | data.data[9];
+/*
+	moto.leftTarget = lt;
+        moto.rightTarget = rt;
+        moto.leftRatio = lr;
+        moto.rightRatio = rr;
+*/
+//	ROS_INFO("LT:%d %d  RT:%d %d", moto.leftTarget, moto.leftRatio, moto.rightTarget, moto.rightRatio);
+}
 
 int main(int argc, char** argv)
 {
@@ -178,8 +208,11 @@ int main(int argc, char** argv)
 	ros::Publisher  plot_pub = n.advertise<motor_msg::motor>("motor", 1000);
 	dynamic_reconfigure::Server<my_serial::pid_paramsConfig> server;
 	dynamic_reconfigure::Server<my_serial::pid_paramsConfig>::CallbackType f;
-
 	
+	int p, read_num = 0, recv_num = 0;
+	bool recv_head = false;
+	bool recv_tail = false;	
+        uint8_t buffer[128] = {0};
 
 	try {
 		ser.setPort("/dev/ttyUSB0");
@@ -209,11 +242,20 @@ int main(int argc, char** argv)
 		if (ser.available()) {
 //			ROS_INFO_STREAM("Reading from serial port\n");
 			std_msgs::String result;
-		        motor_msg::motor moto;
-
-			result.data = ser.read(ser.available());
-//			ROS_INFO_STREAM(result.data);
-			const char *p = result.data.c_str();	
+		        std_msgs::UInt8MultiArray  serial_data;
+			motor_msg::motor moto;
+			int i;
+			int16_t moto_data[4];			
+			p = ser.available();		
+			ser.read(serial_data.data, p);
+			
+			
+			process_data(serial_data, p, moto_data);
+			moto.leftTarget = moto_data[0];
+			moto.leftRatio = moto_data[2];
+			moto.rightTarget = moto_data[1];
+			moto.rightRatio = moto_data[3];		
+/*	
 			const char *index1 = strstr(p, "#");	
 			const char *index2 = strstr(p, "$");
 			const char *index3 = strstr(p, "@");
@@ -244,21 +286,21 @@ int main(int argc, char** argv)
                                         //ROS_INFO("left:%d", moto.leftRatio);
                         }
 
-			
+*/			
 //			ROS_INFO("left:%d", moto.leftRatio);
 //			ROS_INFO("right:%d", moto.rightRatio);
 //			ROS_INFO("leftTarget:%d", moto.leftTarget);
 //			ROS_INFO("rightTarget:%d", moto.rightTarget);			
 			read_pub.publish(result);
-			if (moto.leftRatio < 0 || moto.leftTarget < 0 || moto.rightRatio < 0 || moto.rightTarget < 0) {
-				continue;
-			} else {
+//			if (moto.leftRatio < 0 || moto.leftTarget < 0 || moto.rightRatio < 0 || moto.rightTarget < 0) {
+//				continue;
+//			} else {
+//		        ROS_INFO("LT:%d %d  RT:%d %d", moto.leftTarget, moto.leftRatio, moto.rightTarget, moto.rightRatio);
+
 				plot_pub.publish(moto);
-			}
+//			}
 		}
 		
-//		uint8_t test[3] = {0x11, 0x22, 0x33};
-//		ser.write(test, 3);
 		
 		ros::spinOnce();
 		loop_rate.sleep();

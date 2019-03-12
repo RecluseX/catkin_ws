@@ -19,7 +19,7 @@ int8_t Samples::read_data()
 {
         int i, j;
         double *ptr = &data[0].target;
-        out.open("/home/wisky/.ros/test.txt",std::ios::in);
+        out.open(m_pFileName,std::ios::in);
         printf("%s\n", m_pFileName);
         if (out) {
                 printf("open success\n");
