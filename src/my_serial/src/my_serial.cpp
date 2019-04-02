@@ -251,10 +251,14 @@ int main(int argc, char** argv)
 			
 			
 			process_data(serial_data, p, moto_data);
-			moto.leftTarget = moto_data[0];
-			moto.leftRatio = moto_data[2];
-			moto.rightTarget = moto_data[1];
-			moto.rightRatio = moto_data[3];		
+			if (abs(moto_data[0]) < 1000) 
+				moto.leftTarget = moto_data[0];
+                        if (abs(moto_data[1]) < 1000)
+				moto.leftRatio = moto_data[2];
+                        if (abs(moto_data[2]) < 1000)
+				moto.rightTarget = moto_data[1];
+                        if (abs(moto_data[3]) < 1000)
+				moto.rightRatio = moto_data[3];		
 /*	
 			const char *index1 = strstr(p, "#");	
 			const char *index2 = strstr(p, "$");

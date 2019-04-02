@@ -49,15 +49,15 @@ private:
 Node::Node()
 {
 	m_popSize = 10;
-	m_maxGen = 3;
+	m_maxGen = 0;
 	m_generation = 0;
 	m_evolutationComplete = false;
 	m_getBestIndex = false;
 	m_tuneCnt = 0;
-	m_state = WAIT;
+	m_state = GENETIC;
 	lm = new GA(m_popSize, m_maxGen, 0.8f, 0.15f);
 	rm = new GA(m_popSize, m_maxGen, 0.8f, 0.15f);
-	nn_sample = new NN_SAMPLE("test.txt", 10000);
+	nn_sample = new NN_SAMPLE("test.txt", 1000);
 }
 
 Node::~Node()
