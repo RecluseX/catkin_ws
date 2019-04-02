@@ -9,6 +9,7 @@ project(ga_pid)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
  roscpp
+ motor_msg
 )
 
 ## System dependencies are found with CMake's conventions
